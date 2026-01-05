@@ -27,12 +27,7 @@ A next-generation **AI Content Script Generator** built for creators, marketers,
 ✨ Enhanced error handling & JSON validation
 ```
 
-## 🛠 Tech Stack
 
-| Frontend | Backend | Database | AI | Styling |
-|----------|---------|----------|----|---------|
-| Next.js 14 (App Router) | Supabase Serverless | PostgreSQL | **Groq Llama 3.1** | Tailwind CSS |
-| React 18 | Server Actions | Supabase Auth | JSON Mode | Lucide React Icons |
 
 ## 📸 Demo
 
@@ -64,32 +59,6 @@ Create `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
 GROQ_API_KEY=your_groq_key
-```
-
-### 3. Database Setup
-Run in Supabase SQL Editor:
-```sql
--- Profiles table (usage tracking)
-CREATE TABLE profiles (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id),
-  plan_usage INTEGER DEFAULT 0,
-  monthly_limit INTEGER DEFAULT 50,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Strategies table (history)
-CREATE TABLE strategies (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id),
-  niche TEXT,
-  platform TEXT,
-  goal TEXT,
-  strategy_text TEXT,
-  schedule JSONB,
-  hashtags TEXT,
-  created_at TIMESTAMP DEFAULT NOW()
-);
 ```
 
 ### 4. Run
@@ -171,8 +140,3 @@ MIT License - see `LICENSE`
 ```
 #DKSQwikPlan #AICopywriter #ContentGenerator #SocialMediaAI
 ```
-
-[1](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/537d4832-7741-4c7d-90db-d9263ad82da0/page.tsx)
-[2](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/e6a68428-9396-4672-81fe-37c0ef5a6880/route.ts)
-[3](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/3729938f-63fc-4d03-954e-13a4e40bbc10/ResultModal.tsx)
-[4](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/a85e1060-1044-4e92-817c-e80314d1f153/UsageCard.tsx)
