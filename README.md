@@ -1,104 +1,178 @@
-
 # DKS QwikPlan 🚀
 
-A next-generation AI-powered Marketing Strategy Generator built for modern creators and businesses. This application leverages the power of AI to generate comprehensive marketing plans in seconds based on niche, audience, platform, and goals.
+A next-generation **AI Content Script Generator** built for creators, marketers, and small businesses. Instantly generates **ready-to-post scripts** (video hooks + spoken audio, or complete text posts) tailored to your niche, platform, and goals.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![Next.js](https://img.shields.io/badge/Next.js-14-black)
-![Supabase](https://img.shields.io/badge/Supabase-3ECFF8?logo=supabase&logoColor=white)
+
+
+
+
 
 ## 🌟 Features
 
--   **AI-Powered Strategy Generation:** Instantly creates marketing plans using advanced AI logic.
--   **User Authentication:** Secure sign-up and login system using Supabase Auth.
--   **Usage Tracking & Limits:** Built-in dashboard to monitor monthly credit usage (Free Tier: 10 credits).
--   **Responsive UI:** Beautiful, mobile-first design built with Tailwind CSS.
--   **Interactive Components:** Includes Toast notifications, Result Modals, and Welcome Animations.
--   **Smart Filtering:** Generate strategies tailored for Instagram, Facebook, LinkedIn, or Twitter.
+-   **AI-Powered Content Generation:** Creates **complete post scripts** in seconds (video scripts with scenes/audio OR ready-to-copy text posts)
+-   **Platform-Optimized:** Instagram Reels, TikTok, Twitter/X, LinkedIn, Facebook, YouTube - **platform-specific formats**
+-   **Copy-Ready Output:** Hook, Script, Caption, CTA, Hashtags - **one-click copy**
+-   **User Authentication & Usage Tracking:** Secure Supabase Auth + monthly credit limits (Free: 50 credits)
+-   **History & Download:** Save strategies + CSV export
+-   **Responsive Dashboard:** Beautiful Tailwind UI with real-time usage display
+-   **Smart Pro Tips:** Platform-specific optimization advice
+
+## 🎯 What's New in v2.0
+
+```
+✨ Replaced 7-day plans with SINGLE high-converting post scripts
+✨ Video platforms get full [Scene] + "Spoken Audio" scripts  
+✨ Text platforms get complete ready-to-post copy
+✨ Individual copy buttons for Hook/Script/Caption/CTA
+✨ Enhanced error handling & JSON validation
+```
 
 ## 🛠 Tech Stack
 
--   **Frontend:** Next.js 14 (App Router), React
--   **Styling:** Tailwind CSS
--   **Backend/Database:** Supabase (PostgreSQL & Auth)
--   **Icons:** Lucide React (implied usage of icons)
+| Frontend | Backend | Database | AI | Styling |
+|----------|---------|----------|----|---------|
+| Next.js 14 (App Router) | Supabase Serverless | PostgreSQL | **Groq Llama 3.1** | Tailwind CSS |
+| React 18 | Server Actions | Supabase Auth | JSON Mode | Lucide React Icons |
 
-## 📸 Screenshots
+## 📸 Demo
 
-<!-- Add screenshots here if you have them -->
-<!-- 
-![Dashboard](/path/to/screenshot.png) 
--->
-
-## 🚀 Getting Started
-
-To get a local copy up and running, follow these simple steps.
-
-### Prerequisites
-
--   Node.js installed on your machine.
--   A Supabase project (Create one at [supabase.com](https://supabase.com)).
--   An OpenAI API Key (Optional, if your API backend requires it).
-
-### Installation
-
-1.  **Clone the repo**
-    ```bash
-    git clone https://github.com/seenuraj2007/kds_qwikplan.git
-    ```
-
-2.  **Install NPM packages**
-    ```bash
-    npm install
-    # or
-    yarn install
-    # or
-    pnpm install
-    ```
-
-3.  **Run the Development Server**
-
-    ```bash
-    npm run dev
-    ```
-
-    Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## 📁 Project Structure
-
-```bash
-kds_qwikplan/
-├── app/
-│   ├── components/       # Reusable components (UsageCard, ResultModal)
-│   ├── dashboard/        # Main dashboard page
-│   └── layout.tsx        # Root layout
-├── public/               # Static assets
-├── .env.local            # Environment variables
-└── README.md
+```
+[Add GIF/video of modal with script output]
+Niche: "Coffee Shop" → Platform: "Instagram Reels" → 
+"Hook: Tired gamer? [Scene: energy drink] Script: Full 15s video..."
 ```
 
-## ⚙️ API Routes
+## 🚀 Quick Start
 
-The application uses a secure API route (`/api/generate`) to handle generation requests. It validates the user's session via the Authorization header before deducting usage credits.
+### Prerequisites
+```
+Node.js 18+
+Supabase Account (Free)
+Groq API Key (Free tier works)
+```
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/seenuraj2007/kds_qwikplan.git
+cd kds_qwikplan
+npm install
+```
+
+### 2. Environment Setup
+Create `.env.local`:
+```
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
+GROQ_API_KEY=your_groq_key
+```
+
+### 3. Database Setup
+Run in Supabase SQL Editor:
+```sql
+-- Profiles table (usage tracking)
+CREATE TABLE profiles (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  plan_usage INTEGER DEFAULT 0,
+  monthly_limit INTEGER DEFAULT 50,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Strategies table (history)
+CREATE TABLE strategies (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  niche TEXT,
+  platform TEXT,
+  goal TEXT,
+  strategy_text TEXT,
+  schedule JSONB,
+  hashtags TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### 4. Run
+```bash
+npm run dev
+```
+
+**Live Demo:** [http://localhost:3000](http://localhost:3000)
+
+## 📁 File Structure
+
+```
+app/
+├── api/generate/route.ts     # AI Script generation (Groq + JSON mode)
+├── dashboard/
+│   ├── page.tsx             # Main UI
+│   └── components/
+│       ├── ResultModal.tsx  # New script display + copy buttons
+│       ├── UsageCard.tsx    # Credit tracking
+│       └── WelcomeAnimation.tsx
+├── lib/supabaseClient.ts    # Auth helpers
+└── globals.css              # Tailwind + animations
+```
+
+## 🎮 How It Works
+
+1. **Input:** Niche + Platform + Goal
+2. **AI Magic:** Groq generates platform-optimized JSON
+3. **Output:** Copy-ready script with Hook/Script/CTA
+4. **Save:** Auto-saves to your history
+
+```
+Example Input: "Coffee Shop" + "Instagram Reels" + "Drive Sales"
+Example Output: Full 15s Reel script with [Scenes] + "Audio" + Caption
+```
+
+## 🔧 API Endpoints
+
+```
+POST /api/generate
+Body: { niche, platform, goal, audience? }
+Headers: Authorization: Bearer <token>
+Response: { hook, script, caption, cta, hashtags, ... }
+```
+
+## 🚀 Deploy
+
+**Vercel (Recommended):**
+```bash
+npm i -g vercel
+vercel --prod
+```
+
+**Environment Variables:** Add all `.env.local` vars to Vercel dashboard.
 
 ## 🤝 Contributing
 
-Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+```
+1. Fork repo
+2. `git checkout -b feature/cool-feature`
+3. `npm run dev` + test
+4. `npm test` (add tests!)
+5. PR to `main`
+```
 
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+## 📄 License
 
-## 📝 License
+MIT License - see `LICENSE`
 
-Distributed under the MIT License. See `LICENSE` for more information.
+## 👨‍💻 Author
 
-## 👤 Author
+**Seenuraj2007**  
+[GitHub](https://github.com/seenuraj2007) | [Portfolio](https://seenuraj.com)
 
-**Seenuraj2007** - [GitHub](https://github.com/seenuraj2007)
-# DKS_qwikplan
-# DKS_qwikplan
-# DKS_qwikplan
-# DKS_qwikplan
+***
+
+⭐ **Star this repo if it helps your content game!** 🚀
+
+```
+#DKSQwikPlan #AICopywriter #ContentGenerator #SocialMediaAI
+```
+
+[1](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/537d4832-7741-4c7d-90db-d9263ad82da0/page.tsx)
+[2](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/e6a68428-9396-4672-81fe-37c0ef5a6880/route.ts)
+[3](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/3729938f-63fc-4d03-954e-13a4e40bbc10/ResultModal.tsx)
+[4](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/570980/a85e1060-1044-4e92-817c-e80314d1f153/UsageCard.tsx)
