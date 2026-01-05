@@ -1,5 +1,5 @@
 
-# KDS QwikPlan 🚀
+# DKS QwikPlan 🚀
 
 A next-generation AI-powered Marketing Strategy Generator built for modern creators and businesses. This application leverages the power of AI to generate comprehensive marketing plans in seconds based on niche, audience, platform, and goals.
 
