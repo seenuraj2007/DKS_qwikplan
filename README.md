@@ -12,7 +12,7 @@ A next-generation **AI Content Script Generator** built for creators, marketers,
 -   **AI-Powered Content Generation:** Creates **complete post scripts** in seconds (video scripts with scenes/audio OR ready-to-copy text posts)
 -   **Platform-Optimized:** Instagram Reels, TikTok, Twitter/X, LinkedIn, Facebook, YouTube - **platform-specific formats**
 -   **Copy-Ready Output:** Hook, Script, Caption, CTA, Hashtags - **one-click copy**
--   **User Authentication & Usage Tracking:** Secure Supabase Auth + monthly credit limits (Free: 50 credits)
+-   **User Authentication & Usage Tracking:** monthly credit limits (Free: 50 credits)
 -   **History & Download:** Save strategies + CSV export
 -   **Responsive Dashboard:** Beautiful Tailwind UI with real-time usage display
 -   **Smart Pro Tips:** Platform-specific optimization advice
@@ -42,8 +42,6 @@ Niche: "Coffee Shop" → Platform: "Instagram Reels" →
 ### Prerequisites
 ```
 Node.js 18+
-Supabase Account (Free)
-Groq API Key (Free tier works)
 ```
 
 ### 1. Clone & Install
