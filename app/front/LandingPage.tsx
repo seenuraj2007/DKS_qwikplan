@@ -1,29 +1,8 @@
 'use client'
-
-import Link from 'next/link'
-import { useState } from 'react'
 import {
-  ArrowRight,
-  Zap,
-  BarChart,
-  Rocket,
-  Github,
-  CheckCircle2,
   Calendar,
-  Clock,
-  Users,
-  Sparkles,
-  Loader2,
-  XCircle,
   FileSpreadsheet,
-  MessageSquare,
   Database,
-  Shield,
-  Globe,
-  X,
-  CreditCard,
-  Infinity,
-  Layers
 } from 'lucide-react'
 import TrustSection from './Trust'
 import PricingSection from './Pricing'

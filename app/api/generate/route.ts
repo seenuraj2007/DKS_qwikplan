@@ -5,6 +5,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { checkRateLimit } from '../../../lib/rate-limit'
 
+// Define the response body interface
 interface GenerateRequestBody {
   niche?: unknown
   audience?: unknown
@@ -13,6 +14,7 @@ interface GenerateRequestBody {
   isDemo?: boolean
 }
 
+// --- Helper Functions (Auth & Database) ---
 function getBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return null
@@ -25,14 +27,8 @@ function createSupabaseFromBearerToken(token: string) {
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
-      global: {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     }
   )
 }
@@ -44,14 +40,12 @@ async function createSupabaseFromCookies() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
       cookies: {
-        async get(name: string) {
-          return (await cookieStore).get(name)?.value
-        },
+        async get(name: string) { return (await cookieStore).get(name)?.value },
         async set(name: string, value: string, options: Record<string, unknown>) {
-          ;(await cookieStore).set({ name, value, ...options })
+          ; (await cookieStore).set({ name, value, ...options })
         },
         async remove(name: string, options: Record<string, unknown>) {
-          ;(await cookieStore).set({ name, value: '', ...options })
+          ; (await cookieStore).set({ name, value: '', ...options })
         },
       },
     }
@@ -88,41 +82,27 @@ export async function POST(req: Request) {
         ? createSupabaseFromBearerToken(bearerToken)
         : await createSupabaseFromCookies()
 
-      const {
-        data: { user: userData },
-        error: userError,
-      } = await supabase.auth.getUser()
-
+      const { data: { user: userData }, error: userError } = await supabase.auth.getUser()
       if (userError || !userData) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       user = userData
 
-      // Rate Limiting (Skip for Demo)
+      // Rate Limiting
       const rateLimitResult = checkRateLimit(user.id)
       if (!rateLimitResult.success) {
-        const retryAfterSeconds = Math.max(
-          1,
-          Math.ceil(((rateLimitResult.retryAfter ?? 0) - Date.now()) / 1000)
-        )
+        const retryAfterSeconds = Math.max(1, Math.ceil(((rateLimitResult.retryAfter ?? 0) - Date.now()) / 1000))
         return NextResponse.json(
           { error: 'Too many requests. Please try again shortly.' },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': String(retryAfterSeconds),
-            },
-          }
+          { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
         )
       }
-    }
 
-    // 3. Usage & Limit Checking (Skip for Demo)
-    let currentUsage = 0
-    let limit = 50
-    let profileId: string | null = null
+      // 3. Usage Limit Checking
+      let currentUsage = 0
+      let limit = 50
+      let profileId: string | null = null
 
-    if (!isDemo) {
       const { data: profiles, error: fetchError } = await supabase
         .from('profiles')
         .select('id, plan_usage, monthly_limit')
@@ -139,25 +119,13 @@ export async function POST(req: Request) {
         currentUsage = profile.plan_usage || 0
         limit = profile.monthly_limit || 50
       } else {
-        // Create profile if missing
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
-          .insert([
-            {
-              user_id: user.id,
-              plan_usage: 0,
-              monthly_limit: 50,
-            },
-          ])
+          .insert([{ user_id: user.id, plan_usage: 0, monthly_limit: 50 }])
           .select('id, plan_usage, monthly_limit')
           .single()
 
-        if (insertError) {
-          return NextResponse.json(
-            { error: 'Failed to create user profile' },
-            { status: 500 }
-          )
-        }
+        if (insertError) return NextResponse.json({ error: 'Failed to create user profile' }, { status: 500 })
         profileId = newProfile?.id ?? null
         currentUsage = newProfile?.plan_usage ?? 0
         limit = newProfile?.monthly_limit ?? 50
@@ -165,13 +133,14 @@ export async function POST(req: Request) {
 
       if (currentUsage >= limit) {
         return NextResponse.json(
-          {
-            error: 'Monthly limit reached. Upgrade to Pro for more.',
-            usage: { current: currentUsage, limit },
-          },
+          { error: 'Monthly limit reached. Upgrade to Pro for more.', usage: { current: currentUsage, limit } },
           { status: 429 }
         )
       }
+
+      // Pass profileId to be used later
+      (req as any).profileId = profileId;
+      (req as any).currentUsage = currentUsage;
     }
 
     // 4. AI Generation
@@ -181,139 +150,110 @@ export async function POST(req: Request) {
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-    // Logic: 2 days for demo, 7 days for logged-in users
-    const daysToGenerate = isDemo ? 2 : 7
+    // FIXED: System prompt now contains "JSON" for Groq JSON mode
+    const systemPrompt = `
+You are an expert viral content creator and copywriter. Your ONLY job is to return STRICT JSON.
 
-    const systemPrompt = "You are a strict JSON API for social media strategy. Your output must be valid, parsable JSON. You do not converse; you only return data.";
+Generate ONE high-converting post for:
+- Niche: ${niche}
+- Audience: ${audience || 'general public'}
+- Platform: ${platform}
+- Goal: ${goal}
 
-    const userPrompt = `
-  INPUT DATA:
-  - Niche: ${niche}
-  - Target Audience: ${audience || 'General public'} 
-  - Platform: ${platform}
-  - Goal: ${goal}
+RULES:
+- For VIDEO platforms (Reels, TikTok, YouTube): Return full script with [SCENE] and "SPOKEN" format
+- For TEXT platforms (Twitter, LinkedIn, Facebook): Return ready-to-post text
+- Return ONLY valid JSON - NO other text
+- Make it specific, engaging, and conversion-focused
 
-  INSTRUCTIONS:
-  Analyze the input and generate a ${daysToGenerate}-day plan.
-  
-  CRITICAL SCHEMA RULES:
-  1. "strategy": MUST be a STRING (text). Explain chosen Content Pillar and Psychological Trigger.
-  2. "schedule": MUST be an ARRAY of STRINGS. 
-     - IMPORTANT: The array MUST contain exactly ${daysToGenerate} items.
-     - Format: "Day X: [Verb] [Topic]".
-     - Do NOT output objects or empty strings. Just the array of strings.
-  3. "proTip": MUST be a STRING (Platform specific hack).
-  4. "bestPostTime": MUST be a STRING. Format: "Days: Time".
-  5. "hashtags": MUST be a STRING (10-15 tags).
-
-  GENERATION DETAILS:
-  - Strategy: Focus on specific content pillars for ${niche}.
-  - Schedule: Make actions specific to ${platform} (e.g., 'Reel' for Instagram, 'Thread' for Twitter).
-  - Hashtags: Mix high-volume and niche tags.
-
-  RETURN ONLY RAW JSON. NO MARKDOWN. NO CODE BLOCKS.
-  
-  EXACT JSON STRUCTURE TO FOLLOW:
-  {
-    "strategy": "This week focuses on the [PILLAR] pillar...",
-    "schedule": [ 
-      "Day 1: [Verb] [Specific Topic for ${niche}]",
-      "Day 2: [Verb] [Specific Topic]",
-      "Day 3: [Verb] [Specific Topic]",
-      "Day 4: [Verb] [Specific Topic]",
-      "Day 5: [Verb] [Specific Topic]",
-      "Day 6: [Verb] [Specific Topic]",
-      "Day 7: [Verb] [Specific Topic]"
-    ],
-    "proTip": "[Specific hack for ${platform}]",
-    "bestPostTime": "[Days]: [Time]",
-    "hashtags": "#tag1 #tag2 #tag3"
-  }
-`
+REQUIRED JSON FORMAT (do not change structure):
+{
+  "strategy": "Why this angle converts for this niche/goal",
+  "hook": "First 3-second attention grabber",
+  "script": "FULL main content. Video: [Scene] \"Spoken\". Text: complete post body",
+  "caption": "Caption text (empty string if not needed)",
+  "cta": "Exact call-to-action phrase",
+  "hashtags": "10-15 hashtags separated by spaces",
+  "proTip": "One platform-specific optimization tip",
+  "bestPostTime": "Day + time range (e.g. Fri 6-8PM)"
+}
+    `
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        { role: 'user', content: `Create the best ${platform} post for my ${niche} business targeting ${audience || 'general audience'} with goal ${goal}.` }
       ],
       model: 'llama-3.1-8b-instant',
-      temperature: 1,
+      temperature: 0.7,
       stream: false,
       response_format: { type: 'json_object' },
     })
-    
-    // Safety Check for Groq Free Tier limits
-    if (!chatCompletion) {
+
+    if (!chatCompletion.choices?.[0]?.message?.content) {
       return NextResponse.json({ error: 'AI service unavailable' }, { status: 500 })
     }
 
-    const content = chatCompletion.choices[0]?.message?.content || '{}'
+    const content = chatCompletion.choices[0].message.content
+    let parsed: any
 
-    let parsed: Record<string, unknown>
     try {
       parsed = JSON.parse(content)
-
-      if (!Array.isArray(parsed.schedule)) {
-        parsed.schedule = []
-      }
-
-      // Normalize schedule items to strings
-      parsed.schedule = (parsed.schedule as string[]).map((item) => {
-        if (typeof item === 'object' && item !== null) {
-          if ('day' in item && 'task' in item) {
-            return `${(item as { day: string }).day}: ${(item as { task: string }).task}`
-          }
-          return JSON.stringify(item)
-        }
-        return String(item)
-      })
+      
+      // Ensure all required fields exist (fallback if AI misses something)
+      parsed.strategy = parsed.strategy || "Targeted content optimized for your goal"
+      parsed.hook = parsed.hook || "Attention-grabbing opener"
+      parsed.script = parsed.script || "Full content goes here"
+      parsed.caption = parsed.caption || ""
+      parsed.cta = parsed.cta || "Take action now"
+      parsed.hashtags = parsed.hashtags || ""
+      parsed.proTip = parsed.proTip || "Post during peak hours"
+      parsed.bestPostTime = parsed.bestPostTime || "Weekdays 6-8PM"
+      
     } catch (e) {
-      console.error('JSON Parse Error:', e)
-      return NextResponse.json({ error: 'Invalid AI Response' }, { status: 500 })
+      console.error('JSON Parse Error:', e, 'Raw content:', content)
+      return NextResponse.json({ error: 'Invalid AI Response - try again' }, { status: 500 })
     }
 
-    // 5. FEATURE: Save History to Database (Only for Logged In Users)
+    // 5. Save History & Update Usage (Only for Logged In Users)
     if (!isDemo && user) {
+      const profileId = (req as any).profileId
+      const currentUsage = (req as any).currentUsage
+
       try {
+        // We store the "script" object in the 'schedule' column (assuming it's a flexible JSON column)
+        // or we just store the main text. To keep it compatible with the DB schema, we'll store the whole object.
         const { error: insertError } = await supabase.from('strategies').insert({
           user_id: user.id,
-          niche: niche,
-          platform: platform,
-          goal: goal,
-          strategy_text: parsed.strategy as string,
-          schedule: parsed.schedule,
+          niche,
+          platform,
+          goal,
+          strategy_text: parsed.strategy,
+          schedule: [JSON.stringify(parsed)], // Store as an array of 1 string to fit existing schema if needed, or just the JSON
           hashtags: parsed.hashtags,
         })
-        if (insertError) console.error("History Save Error:", insertError)
+
+        if (insertError) console.error('History Save Error', insertError)
+
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ plan_usage: currentUsage + 1 })
+          .eq('id', profileId)
+
+        if (updateError) console.error('Update Er`ror', updateError)
+
       } catch (dbErr) {
-        console.error("History Save Exception:", dbErr)
-      }
-    }
-
-    // 6. Update Usage (Only for Logged In Users)
-    if (!isDemo && profileId) {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ plan_usage: currentUsage + 1 })
-        .eq('id', profileId)
-
-      if (updateError) {
-        console.error('Update Error:', updateError)
+        console.error('History Save Exception', dbErr)
       }
     }
 
     return NextResponse.json(parsed)
-  } catch (error: any) {
-    console.error('Server Error:', error)
-    
-    // Handle Groq Rate Limits specifically
-    if (error?.status === 429) {
-        return NextResponse.json(
-          { error: 'AI service is busy. Please try again in 10 seconds.' },
-          { status: 429 }
-        )
-    }
 
+  } catch (error: any) {
+    console.error('Server Error', error)
+    if (error?.status === 429) {
+      return NextResponse.json({ error: 'AI service is busy. Please try again in 10 seconds.' }, { status: 429 })
+    }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

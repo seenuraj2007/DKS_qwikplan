@@ -139,3 +139,31 @@ body {
     background: #64748b;
   }
 }
+
+
+@keyframes fire-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255,255,255,0.3); }
+  50% { box-shadow: 0 0 40px rgba(255,165,0,0.6); }
+}
+
+@keyframes ping-slow {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-fire-glow {
+  animation: fire-glow 2s ease-in-out infinite;
+}
+
+.animate-ping-slow {
+  animation: ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 4s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+}
