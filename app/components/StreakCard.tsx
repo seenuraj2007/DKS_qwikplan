@@ -21,17 +21,17 @@ export default function StreakCard({ userId }: StreakCardProps) {
 
   useEffect(() => {
     const safeUserId = userId || null
-    if (!safeUserId) {
-      setStreak(null)
-      setLoading(false)
-      return
-    }
 
-    const fetchStreak = async (id: string) => {
+    const fetchStreak = async () => {
+      if (!safeUserId) {
+        setLoading(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from('user_streaks')
         .select('*')
-        .eq('user_id', id)
+        .eq('user_id', safeUserId)
         .single()
 
       if (error && error.code !== 'PGRST116') {
@@ -42,7 +42,7 @@ export default function StreakCard({ userId }: StreakCardProps) {
       setLoading(false)
     }
 
-    fetchStreak(safeUserId)
+    fetchStreak()
   }, [userId])
 
   // Guest / loading state

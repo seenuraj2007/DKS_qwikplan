@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -20,9 +21,7 @@ import {
   TrendingUp,
   Loader2,
   LogOut,
-  History,
   Download,
-  FileText,
   X
 } from 'lucide-react'
 
@@ -42,18 +41,6 @@ interface Toast {
   show: boolean
   msg: string
   type: 'success' | 'error'
-}
-
-interface HistoryItem {
-  id: number
-  user_id: string
-  niche: string
-  platform: string
-  goal: string
-  strategy_text: string
-  schedule: string[]
-  hashtags: string
-  created_at: string
 }
 
 export default function Dashboard() {
@@ -83,10 +70,6 @@ export default function Dashboard() {
   const [realLimit, setRealLimit] = useState(50)
   const usageRef = useRef(0)
 
-  // History
-  const [history, setHistory] = useState<HistoryItem[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
-
   // 1. Session check + profile
   useEffect(() => {
     async function checkSession() {
@@ -107,7 +90,6 @@ export default function Dashboard() {
           .eq('user_id', session.user.id)
 
         if (error) {
-          console.error('DB Fetch Error:', error.message)
           setRealUsage(usageRef.current)
         } else if (profiles && profiles.length > 0) {
           const profile = profiles[0]
@@ -122,7 +104,6 @@ export default function Dashboard() {
           usageRef.current = 0
         }
       } catch (err) {
-        console.error('Session Check Exception:', err)
         setRealUsage(usageRef.current)
       } finally {
         setTimeout(() => setLoadingAuth(false), 1500)
@@ -132,33 +113,6 @@ export default function Dashboard() {
     checkSession()
   }, [router])
 
-  // 2. Fetch history (last 7 days)
-  useEffect(() => {
-    async function fetchHistory() {
-      if (!userId) return
-      setLoadingHistory(true)
-
-      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-
-      const { data, error } = await supabase
-        .from('strategies')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .gt('created_at', oneWeekAgo.toISOString())
-
-      if (error) {
-        console.error('History Fetch Error:', error)
-      } else if (data) {
-        setHistory(data as HistoryItem[])
-      }
-
-      setLoadingHistory(false)
-    }
-
-    fetchHistory()
-  }, [userId])
-
   if (loadingAuth) {
     return <WelcomeAnimation />
   }
@@ -166,7 +120,7 @@ export default function Dashboard() {
   // Toast helper
   function showToast(message: string, type: 'success' | 'error' = 'success') {
     setToast({ show: true, msg: message, type })
-    setTimeout(() => setToast({ show: false, msg: '', type }), 3000)
+    setTimeout(() => setToast({ show: false, msg: '', type: 'success' }), 3000)
   }
 
   // Logout
@@ -179,6 +133,13 @@ export default function Dashboard() {
   function downloadCSV(data: PlanResult, name: string) {
     if (!data.script) return
 
+    // Helper to safely stringify fields for CSV
+    const formatField = (field: any): string => {
+      if (typeof field === 'string') return field
+      if (typeof field === 'object' && field !== null) return JSON.stringify(field)
+      return String(field)
+    }
+
     const csvContent = [
       ['Component', 'Content'],
       ['Strategy', data.strategy],
@@ -190,7 +151,7 @@ export default function Dashboard() {
       ['Best Time', data.bestPostTime || ''],
       ['Hashtags', data.hashtags || ''],
     ]
-      .map(row => row.map(field => `"${(field || '').replace(/"/g, '""')}"`).join(','))
+      .map(row => row.map(field => `"${formatField(field).replace(/"/g, '""')}"`).join(','))
       .join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
@@ -254,20 +215,10 @@ export default function Dashboard() {
       setShowModal(true)
       showToast('Marketing Plan Generated Successfully!', 'success')
 
-      const { data: newHistory } = await supabase
-        .from('strategies')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (newHistory) setHistory(newHistory as HistoryItem[])
-
       const newUsage = realUsage + 1
       setRealUsage(newUsage)
       usageRef.current = newUsage
     } catch (err) {
-      console.error('Fetch error:', err)
       showToast('Network error.', 'error')
     } finally {
       setLoading(false)
@@ -321,281 +272,12 @@ export default function Dashboard() {
       {/* Main */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* LEFT: Usage + Streak + History */}
+          {/* LEFT: Usage + Streak */}
           <div className="lg:col-span-3 space-y-6">
             <StreakCard userId={userId} />
 
             <UsageCard userEmail={userEmail} usage={realUsage} limit={realLimit} />
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
-
-
-
-              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-
-
-                <div>
-
-
-                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
-
-
-                    <History className="w-4 h-4 text-emerald-600" />
-
-
-                    Recent Strategies
-
-
-                  </h3>
-
-
-                  <p className="text-xs text-slate-500 mt-1">Your saved library</p>
-
-
-                </div>
-
-
-              </div>
-
-
-
-
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-
-
-                {loadingHistory ? (
-
-
-                  <div className="text-center text-sm text-slate-400 py-4">Loading...</div>
-
-
-                ) : history.length === 0 ? (
-
-
-                  <div className="text-center text-sm text-slate-400 py-10">
-
-
-                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-20" />
-
-
-                    No strategies yet.
-
-
-                  </div>
-
-
-                ) : (
-
-
-                  history.map(item => (
-
-
-                    <div key={item.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors group cursor-default">
-
-
-                      <div className="flex justify-between items-start mb-2">
-
-
-                        <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full">
-
-
-                          {item.platform}
-
-
-                        </span>
-
-
-                        <span className="text-[10px] text-slate-400">
-
-
-                          {new Date(item.created_at).toLocaleDateString()}
-
-
-                        </span>
-
-
-                      </div>
-
-
-                      <h4 className="font-bold text-slate-800 text-sm mb-1 truncate">
-
-
-                        {item.niche}
-
-
-                      </h4>
-
-
-                      <p className="text-xs text-slate-500 line-clamp-2 mb-3">
-
-
-                        {item.strategy_text}
-
-
-                      </p>
-
-
-
-
-
-                      <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-
-
-                        <button
-
-
-                          onClick={() => {
-
-
-                            const storedData = {
-
-
-                              strategy: item.strategy_text,
-
-
-                              schedule: item.schedule,
-
-
-                              hashtags: item.hashtags,
-
-
-                            }
-
-
-
-
-
-                            setResult({
-
-
-                              strategy: storedData.strategy,
-
-
-                              hook: 'Hook from your previous strategy',
-
-
-                              script: storedData.strategy,
-
-
-                              cta: 'Check your strategy for CTA',
-
-
-                              proTip: 'Review your saved plan',
-
-
-                              bestPostTime: 'Optimal times in strategy',
-
-
-                              hashtags: storedData.hashtags,
-
-
-                              caption: '',
-
-
-                            })
-
-
-                            setShowModal(true)
-
-
-                          }}
-
-
-                          className="flex-1 bg-white border border-slate-200 text-xs font-semibold py-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
-
-
-                        >
-
-
-                          View
-
-
-                        </button>
-
-
-                        <button
-
-
-                          onClick={() =>
-
-
-                            downloadCSV(
-
-
-                              {
-
-
-                                strategy: item.strategy_text,
-
-
-                                schedule: item.schedule,
-
-
-                                hashtags: item.hashtags,
-
-
-                                hook: 'Hook from your previous strategy',
-
-
-                                script: item.strategy_text,
-
-
-                                cta: 'Check your strategy for CTA',
-
-
-                                proTip: 'Review your saved plan',
-
-
-                                bestPostTime: 'Optimal times in strategy',
-
-
-                                caption: '',
-
-
-                              },
-
-
-                              item.niche
-
-
-                            )
-
-
-                          }
-
-
-                          className="flex-1 bg-white border border-slate-200 text-xs font-semibold py-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors flex items-center justify-center gap-1"
-
-
-                        >
-
-
-                          <Download className="w-3 h-3" /> CSV
-
-
-                        </button>
-
-
-                      </div>
-
-
-                    </div>
-
-
-                  ))
-
-
-                )}
-
-
-              </div>
-
-
-            </div>
-
-
-
-            
+          </div>
 
           {/* RIGHT: Generator */}
           <div className="lg:col-span-9 space-y-8 animate-fade-in-up">
