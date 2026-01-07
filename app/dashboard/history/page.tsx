@@ -267,7 +267,7 @@ export default function HistoryPage() {
                     Download
                   </button>
                   <Link
-                    href={`/dashboard?regenerate=${strategy.id}`}
+                    href={`/dashboard?view=${strategy.id}`}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md transition-all text-center"
                   >
                     <Globe className="w-4 h-4" />

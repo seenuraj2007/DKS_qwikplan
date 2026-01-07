@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabaseClient'
 import { useToast } from '../contexts/ToastContext'
 import type { PlanResult } from '../../lib/types'
@@ -34,6 +34,7 @@ import {
 
 export default function Dashboard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { showToast } = useToast()
 
   // User info
@@ -143,6 +144,62 @@ export default function Dashboard() {
 
     checkSession()
   }, [router])
+
+  // Load strategy from URL params (from history page "view details")
+  useEffect(() => {
+    async function loadStrategyFromUrl() {
+      const strategyId = searchParams.get('view') || searchParams.get('regenerate')
+      
+      if (!strategyId || !userId) return
+
+      try {
+        const { data: strategy, error } = await supabase
+          .from('strategies')
+          .select('*')
+          .eq('id', strategyId)
+          .single()
+
+        if (error || !strategy) {
+          console.error('Failed to load strategy:', error)
+          return
+        }
+
+        let parsedResult: PlanResult | null = null
+        
+        try {
+          if (typeof strategy.schedule === 'string') {
+            parsedResult = JSON.parse(strategy.schedule)
+          } else if (Array.isArray(strategy.schedule)) {
+            const planData = strategy.schedule[0]
+            if (typeof planData === 'string') {
+              parsedResult = JSON.parse(planData)
+            } else {
+              parsedResult = planData as PlanResult
+            }
+          } else {
+            parsedResult = strategy.schedule as PlanResult
+          }
+        } catch (parseErr) {
+          console.error('Failed to parse strategy:', parseErr)
+          return
+        }
+
+        if (parsedResult) {
+          setNiche(strategy.niche)
+          setPlatform(strategy.platform)
+          setGoal(strategy.goal)
+          setResult(parsedResult)
+          setShowModal(true)
+          
+          router.replace('/dashboard', { scroll: false })
+        }
+      } catch (err) {
+        console.error('Error loading strategy:', err)
+      }
+    }
+
+    loadStrategyFromUrl()
+  }, [searchParams, userId, router])
 
   if (loadingAuth) {
     return <WelcomeAnimation />
