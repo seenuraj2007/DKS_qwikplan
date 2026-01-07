@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabaseClient'
 import { useToast } from '../contexts/ToastContext'
@@ -32,7 +32,7 @@ import {
   Crown
 } from 'lucide-react'
 
-export default function Dashboard() {
+function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { showToast } = useToast()
@@ -689,5 +689,13 @@ export default function Dashboard() {
         />
       )}
     </div>
+  )
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<WelcomeAnimation />}>
+      <DashboardContent />
+    </Suspense>
   )
 }
