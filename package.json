@@ -14,9 +14,11 @@
     "groq-sdk": "^0.37.0",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
+    "razorpay": "^2.9.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "resend": "^6.6.0"
+    "resend": "^6.6.0",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

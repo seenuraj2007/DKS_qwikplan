@@ -4,9 +4,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabaseClient'
+import { useToast } from '../contexts/ToastContext'
+import type { PlanResult } from '../../lib/types'
 
 import UsageCard from '../components/UsageCard'
 import ResultModal from '../components/ResultModal'
+import ResultModalEnhanced from '../components/ResultModalEnhanced'
+import LoadingState from '../components/LoadingState'
 import WelcomeAnimation from '../components/WelcomeAnimation'
 import StreakCard from '../components/StreakCard'
 
@@ -22,29 +26,15 @@ import {
   Loader2,
   LogOut,
   Download,
-  X
+  X,
+  History,
+  Settings,
+  Crown
 } from 'lucide-react'
-
-interface PlanResult {
-  strategy: string
-  hook: string
-  script: string
-  caption?: string
-  cta: string
-  proTip?: string
-  bestPostTime?: string
-  hashtags?: string
-  schedule?: any
-}
-
-interface Toast {
-  show: boolean
-  msg: string
-  type: 'success' | 'error'
-}
 
 export default function Dashboard() {
   const router = useRouter()
+  const { showToast } = useToast()
 
   // User info
   const [userEmail, setUserEmail] = useState('')
@@ -57,17 +47,16 @@ export default function Dashboard() {
   const [platform, setPlatform] = useState('instagram')
   const [goal, setGoal] = useState('sales')
   const [loading, setLoading] = useState(false)
+  const [loadingStage, setLoadingStage] = useState<'analyzing' | 'crafting' | 'writing' | 'optimizing' | 'complete'>('analyzing')
   const [result, setResult] = useState<PlanResult | null>(null)
 
   // Modal
   const [showModal, setShowModal] = useState(false)
 
-  // Toast
-  const [toast, setToast] = useState<Toast>({ show: false, msg: '', type: 'success' })
-
   // Usage
   const [realUsage, setRealUsage] = useState(0)
   const [realLimit, setRealLimit] = useState(50)
+  const [planType, setPlanType] = useState<'free' | 'pro' | 'enterprise'>('free')
   const usageRef = useRef(0)
 
   // 1. Session check + profile
@@ -86,10 +75,11 @@ export default function Dashboard() {
 
         const { data: profiles, error } = await supabase
           .from('profiles')
-          .select('id, plan_usage, monthly_limit')
+          .select('id, plan_usage, monthly_limit, plan_type')
           .eq('user_id', session.user.id)
 
         if (error) {
+          console.error('Profile fetch error:', error)
           setRealUsage(usageRef.current)
         } else if (profiles && profiles.length > 0) {
           const profile = profiles[0]
@@ -97,13 +87,16 @@ export default function Dashboard() {
           const limitValue = profile.monthly_limit || 50
           setRealUsage(usageValue)
           setRealLimit(limitValue)
+          setPlanType(profile.plan_type || 'free')
           usageRef.current = usageValue
         } else {
           setRealUsage(0)
           setRealLimit(50)
+          setPlanType('free')
           usageRef.current = 0
         }
       } catch (err) {
+        console.error('Session check error:', err)
         setRealUsage(usageRef.current)
       } finally {
         setTimeout(() => setLoadingAuth(false), 1500)
@@ -118,11 +111,6 @@ export default function Dashboard() {
   }
 
   // Toast helper
-  function showToast(message: string, type: 'success' | 'error' = 'success') {
-    setToast({ show: true, msg: message, type })
-    setTimeout(() => setToast({ show: false, msg: '', type: 'success' }), 3000)
-  }
-
   // Logout
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -173,6 +161,7 @@ export default function Dashboard() {
     }
 
     setLoading(true)
+    setLoadingStage('analyzing')
     setResult(null)
 
     try {
@@ -184,6 +173,14 @@ export default function Dashboard() {
         router.push('/auth')
         return
       }
+
+      // Simulate loading stages for better UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('crafting')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('writing')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('optimizing')
 
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -211,6 +208,7 @@ export default function Dashboard() {
       }
 
       const data = await res.json()
+      setLoadingStage('complete')
       setResult(data)
       setShowModal(true)
       showToast('Marketing Plan Generated Successfully!', 'success')
@@ -221,20 +219,86 @@ export default function Dashboard() {
     } catch (err) {
       showToast('Network error.', 'error')
     } finally {
-      setLoading(false)
+      setTimeout(() => {
+        setLoading(false)
+        setLoadingStage('analyzing')
+      }, 500)
+    }
+  }
+
+  // Regenerate with options
+  async function handleRegenerate(type: 'full' | 'hook' | 'script' | 'angle') {
+    if (!niche.trim()) {
+      showToast('Please enter your business niche', 'error')
+      return
+    }
+
+    setLoading(true)
+    setLoadingStage('analyzing')
+    setShowModal(false)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      if (!accessToken) {
+        showToast('Session expired. Please log in again.', 'error')
+        router.push('/auth')
+        return
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('crafting')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('writing')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('optimizing')
+
+      // Add instructions to the request for partial regenerations
+      const body: Record<string, unknown> = {
+        niche,
+        audience,
+        platform,
+        goal,
+        regenerate: type
+      }
+
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const errorData: Record<string, unknown> = await res.json().catch(() => ({}))
+        showToast((errorData.error as string) || 'Something went wrong', 'error')
+        return
+      }
+
+      const data = await res.json()
+      setLoadingStage('complete')
+      setResult(data)
+      setShowModal(true)
+      showToast(`${type === 'full' ? 'Content' : type === 'angle' ? 'New angle' : type} regenerated successfully!`, 'success')
+
+      const newUsage = realUsage + 1
+      setRealUsage(newUsage)
+      usageRef.current = newUsage
+    } catch (err) {
+      showToast('Network error.', 'error')
+    } finally {
+      setTimeout(() => {
+        setLoading(false)
+        setLoadingStage('analyzing')
+      }, 500)
     }
   }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 font-sans relative">
-      {/* Toast */}
-      {toast.show && (
-        <div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-xl shadow-2xl font-medium text-white transition-all duration-300 transform animate-bounce-in flex items-center gap-3 min-w-[320px] border border-white/10 backdrop-blur-md ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-500'}`}>
-          {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <X className="w-5 h-5 flex-shrink-0" />}
-          <span>{toast.msg}</span>
-        </div>
-      )}
-
       {/* Navbar */}
       <nav className="sticky top-0 z-50 w-full border-b border-slate-200/60 bg-white/70 backdrop-blur-md transition-all">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -248,17 +312,49 @@ export default function Dashboard() {
           </Link>
 
           <div className="flex items-center gap-6">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-xs font-semibold text-slate-600">
-                {realUsage}/{realLimit} Credits
-              </span>
-            </div>
+            {planType === 'pro' ? (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-full border border-amber-200">
+                <Crown className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
+                  PRO
+                </span>
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-xs font-semibold text-slate-600">
+                  {realUsage}/{realLimit} Credits
+                </span>
+              </div>
+            )}
+ 
+            <Link
+              href="/dashboard/history"
+              className="hidden md:flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-lg transition-all duration-200"
+            >
+              <History className="w-4 h-4" /> History
+            </Link>
+ 
+            <Link
+              href="/dashboard/settings"
+              className="hidden md:flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-lg transition-all duration-200"
+            >
+              <Settings className="w-4 h-4" /> Settings
+            </Link>
 
+            {planType === 'free' && (
+              <Link
+                href="/pricing"
+                className="hidden md:flex items-center gap-2 text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 px-4 py-2 rounded-lg transition-all duration-200 shadow-lg shadow-amber-500/30"
+              >
+                <Crown className="w-4 h-4" /> Upgrade
+              </Link>
+            )}
+ 
             <div className="hidden md:block text-sm font-medium text-slate-500">
               {userEmail}
             </div>
-
+ 
             <button
               onClick={handleLogout}
               className="text-sm font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2"
@@ -439,9 +535,13 @@ export default function Dashboard() {
                         </>
                       )}
                     </button>
-                    <p className="text-center text-xs text-slate-400 mt-3">
-                      This will use 1 credit from your monthly limit.
-                    </p>
+
+                    {/* Loading State Component */}
+                    {loading && (
+                      <div className="mt-6">
+                        <LoadingState stage={loadingStage} progress={80} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -452,7 +552,7 @@ export default function Dashboard() {
 
       {/* Modal */}
       {userId && (
-        <ResultModal
+        <ResultModalEnhanced
           showModal={showModal}
           result={result}
           niche={niche}
@@ -461,40 +561,10 @@ export default function Dashboard() {
           onClose={() => setShowModal(false)}
           userId={userId}
           userEmail={userEmail}
-          onDownload={data => downloadCSV(data, niche)}
+          onDownload={(data: PlanResult) => downloadCSV(data, niche)}
+          onRegenerate={handleRegenerate}
         />
       )}
-
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.6s ease-out forwards;
-        }
-        @keyframes bounceIn {
-          0% { opacity: 0; transform: scale(0.9); }
-          50% { transform: scale(1.02); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        .animate-bounce-in {
-          animation: bounceIn 0.4s ease-out forwards;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: #cbd5e1;
-          border-radius: 20px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: #94a3b8;
-        }
-      `}</style>
     </div>
   )
 }

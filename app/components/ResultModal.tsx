@@ -1,20 +1,9 @@
 'use client'
 
 import { supabase } from '../../lib/supabaseClient'
+import type { PlanResult } from '../../lib/types'
 import { useState } from 'react'
 import { X, Download, Copy, Check, Zap, Clock, Hash, MessageCircle, Star } from 'lucide-react'
-
-// Updated Interface
-export interface PlanResult {
-  strategy: string
-  hook: string
-  script: string // This is the Main Content / Body
-  caption?: string
-  cta: string
-  proTip?: string
-  bestPostTime?: string
-  hashtags?: string
-}
 
 interface ResultModalProps {
   showModal: boolean

@@ -1,31 +1,23 @@
 // app/api/demo-generate/route.ts
 import { NextResponse } from 'next/server'
 import { Groq } from 'groq-sdk'
-
-interface DemoRequestBody {
-  niche?: unknown
-  audience?: unknown
-  platform?: unknown
-  goal?: unknown
-}
+import { demoGenerateRequestSchema } from '../../../lib/validations'
 
 export async function POST(req: Request) {
   try {
-    let body: DemoRequestBody | undefined
-    try {
-      body = await req.json() as DemoRequestBody
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    const body = await req.json()
+    
+    const validatedBody = demoGenerateRequestSchema.safeParse(body)
+    
+    if (!validatedBody.success) {
+      const firstError = validatedBody.error.issues[0]
+      return NextResponse.json(
+        { error: firstError?.message || 'Invalid input' },
+        { status: 400 }
+      )
     }
-
-    const niche = typeof body?.niche === 'string' ? body.niche.trim() : ''
-    const audience = typeof body?.audience === 'string' ? body.audience.trim() : ''
-    const platform = typeof body?.platform === 'string' ? body.platform.trim() : ''
-    const goal = typeof body?.goal === 'string' ? body.goal.trim() : ''
-
-    if (!niche || !platform || !goal) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
-    }
+    
+    const { niche, audience, platform, goal } = validatedBody.data
 
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 })

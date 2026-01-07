@@ -1,53 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
-import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-
-function getBearerToken(req: Request): string | null {
-  const authHeader = req.headers.get('authorization')
-  if (!authHeader) return null
-  const match = authHeader.match(/^Bearer\s+(.+)$/i)
-  return match?.[1] ?? null
-}
-
-function createSupabaseFromBearerToken(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-    {
-      global: {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    }
-  )
-}
-
-async function createSupabaseFromCookies() {
-  const cookieStore = await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-    {
-      cookies: {
-        async get(name: string) {
-          return (await cookieStore).get(name)?.value
-        },
-        async set(name: string, value: string, options: Record<string, unknown>) {
-          ;(await cookieStore).set({ name, value, ...options })
-        },
-        async remove(name: string, options: Record<string, unknown>) {
-          ;(await cookieStore).set({ name, value: '', ...options })
-        },
-      },
-    }
-  )
-}
+import { getBearerToken, createSupabaseFromBearerToken, createSupabaseFromCookies } from '../../../lib/supabaseServer'
+import { feedbackRequestSchema } from '../../../lib/validations'
 
 function escapeHtml(value: unknown): string {
   return String(value)
@@ -58,37 +12,21 @@ function escapeHtml(value: unknown): string {
     .replaceAll("'", '&#039;')
 }
 
-interface FeedbackRequestBody {
-  feedbackText?: unknown
-  niche?: unknown
-  platform?: unknown
-  rating?: number // Optional: Send this from frontend if you want to store it
-}
-
 export async function POST(req: Request) {
   try {
-    let body: FeedbackRequestBody | undefined
-    try {
-      body = await req.json() as FeedbackRequestBody
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-    }
-
-    const feedbackText =
-      typeof body?.feedbackText === 'string' ? body.feedbackText.trim() : ''
-    const niche = typeof body?.niche === 'string' ? body.niche.trim() : null
-    const platform = typeof body?.platform === 'string' ? body.platform.trim() : null
-
-    if (!feedbackText) {
+    const body = await req.json()
+    
+    const validatedBody = feedbackRequestSchema.safeParse(body)
+    
+    if (!validatedBody.success) {
+      const firstError = validatedBody.error.issues[0]
       return NextResponse.json(
-        { error: 'Missing required field: feedbackText' },
+        { error: firstError?.message || 'Invalid input' },
         { status: 400 }
       )
     }
-
-    if (feedbackText.length > 2000) {
-      return NextResponse.json({ error: 'Feedback is too long' }, { status: 400 })
-    }
+    
+    const { feedbackText, niche, platform, rating } = validatedBody.data
 
     // 1. Auth
     const bearerToken = getBearerToken(req)
@@ -110,7 +48,7 @@ export async function POST(req: Request) {
     const { error: insertError } = await supabase.from('feedback').insert({
       user_id: user.id,
       user_email: user.email || null,
-      rating: body?.rating || null, // Pass rating if frontend sends it, else null
+      rating: rating || null,
       feedback_text: feedbackText,
       niche_context: niche,
       platform: platform,

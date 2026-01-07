@@ -1,16 +1,18 @@
-import { Loader2, Sparkles, X, CheckCircle2, Rocket, Zap, Link, ArrowRight } from "lucide-react"
+import { Loader2, Sparkles, X, CheckCircle2, Rocket, Zap, FileText, ArrowRight, Hash, Clock } from "lucide-react"
 import { useState } from "react"
+import Link from "next/link"
 
-// --- Interactive Demo (Modernized) ---
 const DemoSection = () => {
   const [selectedNiche, setSelectedNiche] = useState('Sustainable Fashion')
   const [selectedPlatform, setSelectedPlatform] = useState('Instagram')
+  const [selectedGoal, setSelectedGoal] = useState('Sales')
   const [generatedStrategy, setGeneratedStrategy] = useState<any>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [demoError, setDemoError] = useState('')
 
   const demoNiches = ['Sustainable Fashion', 'Tech SaaS', 'Food Blogging', 'Fitness Coaching']
   const demoPlatforms = ['Instagram', 'LinkedIn', 'YouTube', 'Twitter']
+  const demoGoals = ['Sales', 'Brand Awareness', 'Engagement', 'Leads']
 
   const handleDemoGenerate = async () => {
     setIsGenerating(true)
@@ -25,28 +27,43 @@ const DemoSection = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           niche: selectedNiche,
+          audience: 'General audience',
           platform: selectedPlatform,
-          goal: 'Increase engagement and brand awareness',
+          goal: selectedGoal,
         }),
       })
 
       if (!res.ok) throw new Error('API Error')
 
       const data = await res.json()
-      if (data.schedule) data.schedule = data.schedule.slice(0, 2)
       setGeneratedStrategy(data)
     } catch (error) {
       console.error(error)
       setDemoError('Live demo is at limit right now. Showing a realistic sample instead.')
       setGeneratedStrategy({
-        strategy: `Focus on educational "behind-the-scenes" content about ${selectedNiche} to build authority on ${selectedPlatform}.`,
-        schedule: [
-          `Day 1: "Top 5 Mistakes in ${selectedNiche}" (Carousel)`,
-          `Day 2: Customer Success Story (Video/Reel)`
-        ],
-        proTip: 'Engage with comments within the first 15 minutes of posting.',
-        bestPostTime: 'Weekdays: 10:00 AM - 2:00 PM',
-        hashtags: `#${selectedNiche.replace(/\s+/g, '')} #Growth #Marketing`
+        strategy: `Focus on ${selectedGoal.toLowerCase()} for ${selectedNiche} by highlighting unique value proposition and social proof. Use authentic storytelling to build trust on ${selectedPlatform}.`,
+        hook: `Wait, you've been ${selectedNiche.toLowerCase()} all wrong...`,
+        script: `Stop trying to appeal to everyone. The ${selectedNiche} audience doesn't want "good enough" – they want specific solutions to specific problems.
+
+The secret? Position yourself as the expert who understands ONE thing deeply, then scale that authority.
+
+Content pillars that convert:
+1. Problem-solution format (show you understand their pain)
+2. Behind-the-scenes authenticity (builds connection)
+3. Transformation stories (social proof that works)
+
+Your next post? Pick one of these formats and watch engagement skyrocket.`,
+        caption: `Want to stand out in ${selectedNiche}? 🚀
+
+Stop trying to be everything to everyone. Focus on solving ONE specific problem better than anyone else.
+
+Save this for reference ♻️
+
+#${selectedNiche.replace(/\s+/g, '')} #MarketingTips #GrowthStrategy`,
+        cta: `Comment "FOCUS" and I'll send you my 30-day content calendar`,
+        proTip: `On ${selectedPlatform}, post between 6-8 PM on weekdays for maximum engagement. Use the first 3 words of your hook as your image/text overlay.`,
+        bestPostTime: 'Weekdays 6:00-8:00 PM',
+        hashtags: `#${selectedNiche.replace(/\s+/g, '')} #${selectedNiche.replace(/\s+/g, '')}Tips #Marketing #ContentStrategy #SocialMedia #Growth #${selectedGoal} #${selectedPlatform} #BusinessGrowth`
       })
     } finally {
       setIsGenerating(false)
@@ -67,44 +84,44 @@ const DemoSection = () => {
             Interactive Demo
           </span>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 tracking-tight">
-            See execution, not just ideas
+            Generate your first strategy
           </h2>
           <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-            No signup required. Pick a niche and platform, and watch it turn into a real, structured plan.
+            See what the dashboard actually generates. No signup required.
           </p>
         </div>
 
         <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 sm:p-8 md:p-10 shadow-2xl ring-1 ring-white/10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">1. Pick a Niche</label>
-              <div className="relative group">
-                <select
-                  value={selectedNiche}
-                  onChange={(e) => setSelectedNiche(e.target.value)}
-                  className="w-full px-4 py-4 bg-slate-900/80 border border-slate-700 text-white rounded-2xl text-base focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all hover:border-slate-500"
-                >
-                  {demoNiches.map(niche => <option key={niche} value={niche}>{niche}</option>)}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Niche</label>
+              <select
+                value={selectedNiche}
+                onChange={(e) => setSelectedNiche(e.target.value)}
+                className="w-full px-3 py-3 bg-slate-900/80 border border-slate-700 text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all"
+              >
+                {demoNiches.map(niche => <option key={niche} value={niche}>{niche}</option>)}
+              </select>
             </div>
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">2. Pick a Platform</label>
-              <div className="relative group">
-                <select
-                  value={selectedPlatform}
-                  onChange={(e) => setSelectedPlatform(e.target.value)}
-                  className="w-full px-4 py-4 bg-slate-900/80 border border-slate-700 text-white rounded-2xl text-base focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all hover:border-slate-500"
-                >
-                  {demoPlatforms.map(platform => <option key={platform} value={platform}>{platform}</option>)}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Platform</label>
+              <select
+                value={selectedPlatform}
+                onChange={(e) => setSelectedPlatform(e.target.value)}
+                className="w-full px-3 py-3 bg-slate-900/80 border border-slate-700 text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all"
+              >
+                {demoPlatforms.map(platform => <option key={platform} value={platform}>{platform}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Goal</label>
+              <select
+                value={selectedGoal}
+                onChange={(e) => setSelectedGoal(e.target.value)}
+                className="w-full px-3 py-3 bg-slate-900/80 border border-slate-700 text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all"
+              >
+                {demoGoals.map(goal => <option key={goal} value={goal}>{goal}</option>)}
+              </select>
             </div>
           </div>
 
@@ -127,92 +144,108 @@ const DemoSection = () => {
           </button>
 
           {demoError && (
-            <div className="mt-6 flex items-center gap-3 text-sm text-amber-200 bg-amber-900/40 border border-amber-500/30 px-4 py-3 rounded-xl">
+            <div className="mt-4 flex items-center gap-3 text-sm text-amber-200 bg-amber-900/40 border border-amber-500/30 px-4 py-3 rounded-xl">
               <X className="w-5 h-5 flex-shrink-0" />
               <span>{demoError}</span>
             </div>
           )}
 
-          <div className="mt-8 relative min-h-[340px]">
+          <div className="mt-8 relative min-h-[380px]">
             {generatedStrategy ? (
               <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 ease-out">
-                <div className="flex flex-col sm:flex-row items-start sm:justify-between sm:items-center mb-6 gap-3">
-                  <h3 className="font-bold text-white flex items-center gap-3 text-2xl">
-                    <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    Strategy Generated
-                  </h3>
-                  <span className="text-xs font-medium text-slate-500 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
-                    Demo preview (2 of 7 days)
-                  </span>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-bold text-white text-xl">Your Marketing Strategy</h3>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-800">
-                    <h4 className="text-xs font-bold text-emerald-400 mb-4 uppercase tracking-widest flex items-center gap-2">
-                      <Rocket className="w-4 h-4" />
-                      Core Strategy
-                    </h4>
-                    <p className="text-slate-300 leading-relaxed text-base mb-8">{generatedStrategy.strategy}</p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800">
+                      <h4 className="text-xs font-bold text-emerald-400 mb-3 uppercase tracking-widest flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        Hook
+                      </h4>
+                      <p className="text-white text-base leading-relaxed font-semibold">
+                        {generatedStrategy.hook}
+                      </p>
+                    </div>
 
-                    <h4 className="text-xs font-bold text-emerald-400 mb-4 uppercase tracking-widest">
-                      2-Day Schedule
-                    </h4>
-                    <div className="space-y-4">
-                      {generatedStrategy.schedule.map((day: string, idx: number) => (
-                        <div key={idx} className="flex gap-4 items-start text-sm text-slate-300 group">
-                          <div className="bg-slate-800 group-hover:bg-emerald-900/50 transition-colors w-7 h-7 rounded-lg flex items-center justify-center text-xs font-mono mt-0.5 text-slate-500 group-hover:text-emerald-400 flex-shrink-0 border border-slate-700/50">
-                            {idx + 1}
-                          </div>
-                          <span className="leading-relaxed py-1">{day}</span>
-                        </div>
-                      ))}
+                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800">
+                      <h4 className="text-xs font-bold text-emerald-400 mb-3 uppercase tracking-widest flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Script / Content
+                      </h4>
+                      <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
+                        {generatedStrategy.script}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800">
+                      <h4 className="text-xs font-bold text-emerald-400 mb-3 uppercase tracking-widest flex items-center gap-2">
+                        <Rocket className="w-4 h-4" />
+                        Call-to-Action
+                      </h4>
+                      <p className="text-white text-base leading-relaxed font-semibold">
+                        {generatedStrategy.cta}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="space-y-4 flex flex-col">
-                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800 flex-1">
+                  <div className="space-y-4">
+                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800">
                       <div className="flex items-center gap-2 mb-3 text-slate-400 text-xs uppercase font-bold tracking-wider">
-                        <Zap className="w-4 h-4 text-amber-400" /> Pro Tip
+                        <Clock className="w-4 h-4 text-amber-400" />
+                        Best Posting Time
                       </div>
-                      <p className="text-slate-300 text-sm leading-snug">{generatedStrategy.proTip}</p>
+                      <p className="text-white text-base font-medium">
+                        {generatedStrategy.bestPostTime}
+                      </p>
                     </div>
-                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800 flex-1">
+
+                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800">
                       <div className="flex items-center gap-2 mb-3 text-slate-400 text-xs uppercase font-bold tracking-wider">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                        </svg>
-                        Time & Hashtags
+                        <Hash className="w-4 h-4 text-teal-400" />
+                        Hashtags
                       </div>
-                      <p className="text-slate-300 text-xs mb-2 opacity-90">{generatedStrategy.bestPostTime}</p>
                       <p className="text-emerald-400 text-xs font-mono break-words leading-normal">
                         {generatedStrategy.hashtags}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-800">
+                      <div className="flex items-center gap-2 mb-3 text-slate-400 text-xs uppercase font-bold tracking-wider">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        Pro Tip
+                      </div>
+                      <p className="text-slate-300 text-sm leading-relaxed">
+                        {generatedStrategy.proTip}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 text-center">
+                <div className="mt-8 text-center space-y-3">
                   <Link
                     href="/auth"
                     className="inline-flex items-center text-sm font-bold text-emerald-400 hover:text-emerald-300 gap-2 transition-colors group"
                   >
-                    Unlock full 7-day calendar & CSV export 
+                    Generate unlimited strategies & export as CSV 
                     <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
                   </Link>
-                  <p className="text-xs text-slate-600 mt-3">
-                    Free account • No card required • Built on Vercel & Supabase
+                  <p className="text-xs text-slate-600">
+                    Free account • Track usage • History & Streaks
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="h-[340px] border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 px-6 text-center bg-slate-900/30">
+              <div className="h-[380px] border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 px-6 text-center bg-slate-900/30">
                 <div className="w-14 h-14 bg-slate-900/50 rounded-full flex items-center justify-center mb-4 border border-slate-800">
                   <Sparkles className="w-6 h-6 opacity-40" />
                 </div>
                 <p className="text-base font-medium text-slate-400">Ready to generate?</p>
-                <p className="text-sm text-slate-600 mt-1 max-w-xs mx-auto">Select your niche and platform above to see the magic in action.</p>
+                <p className="text-sm text-slate-600 mt-1 max-w-xs mx-auto">Select your niche, platform, and goal above to see the magic.</p>
               </div>
             )}
           </div>
