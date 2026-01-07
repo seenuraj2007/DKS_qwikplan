@@ -100,7 +100,13 @@ export async function POST(req: Request) {
         await generateService.saveStrategy(user.id, { niche, audience, platform, goal }, parsed)
 
         const userService = new UserService(supabase)
-        await userService.incrementUsage(profileId)
+        const updatedProfile = await userService.incrementUsage(profileId)
+        
+        if (!updatedProfile) {
+          console.error('Failed to increment usage for profile:', profileId)
+        } else {
+          console.log('Usage incremented successfully:', updatedProfile.plan_usage)
+        }
 
       } catch (dbErr) {
         console.error('History Save Exception', dbErr)

@@ -86,10 +86,17 @@ export class UserService {
   async incrementUsage(profileId: string): Promise<UserProfile | null> {
     const profile = await this.getUserProfileById(profileId)
     if (!profile) {
+      console.error('Profile not found:', profileId)
       return null
     }
 
-    return this.updateProfile(profileId, { planUsage: profile.plan_usage + 1 })
+    console.log('Incrementing usage for profile:', profileId, 'Current:', profile.plan_usage)
+    
+    const result = await this.updateProfile(profileId, { planUsage: profile.plan_usage + 1 })
+    
+    console.log('Updated usage for profile:', profileId, 'New:', result?.plan_usage)
+    
+    return result
   }
 
   async getUserProfileById(profileId: string): Promise<UserProfile | null> {

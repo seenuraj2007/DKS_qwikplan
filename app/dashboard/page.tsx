@@ -78,6 +78,8 @@ export default function Dashboard() {
           .select('id, plan_usage, monthly_limit, plan_type')
           .eq('user_id', session.user.id)
 
+        console.log('Fetched profiles:', profiles, 'Error:', error)
+
         if (error) {
           console.error('Profile fetch error:', error)
           const { data: newProfile, error: createError } = await supabase
@@ -85,6 +87,8 @@ export default function Dashboard() {
             .insert([{ user_id: session.user.id, plan_usage: 0, monthly_limit: 50, plan_type: 'free' }])
             .select('id, plan_usage, monthly_limit, plan_type')
             .single()
+          
+          console.log('Created new profile:', newProfile, 'Error:', createError)
           
           if (createError) {
             console.error('Profile create error:', createError)
@@ -102,6 +106,7 @@ export default function Dashboard() {
           const profile = profiles[0]
           const usageValue = profile.plan_usage || 0
           const limitValue = profile.monthly_limit || 50
+          console.log('Setting usage from profile:', usageValue, limitValue, profile.plan_type)
           setRealUsage(usageValue)
           setRealLimit(limitValue)
           setPlanType(profile.plan_type || 'free')
@@ -112,6 +117,8 @@ export default function Dashboard() {
             .insert([{ user_id: session.user.id, plan_usage: 0, monthly_limit: 50, plan_type: 'free' }])
             .select('id, plan_usage, monthly_limit, plan_type')
             .single()
+          
+          console.log('Created new profile (no existing):', newProfile, 'Error:', createError)
           
           if (createError) {
             console.error('Profile create error:', createError)
@@ -248,11 +255,13 @@ export default function Dashboard() {
       setRealUsage(newUsage)
       usageRef.current = newUsage
       
-      const { data: updatedProfile } = await supabase
+      const { data: updatedProfile, error: updateError } = await supabase
         .from('profiles')
         .select('plan_usage, monthly_limit')
         .eq('user_id', userId)
         .single()
+      
+      console.log('After generation - Updated profile:', updatedProfile, 'Error:', updateError)
       
       if (updatedProfile) {
         setRealUsage(updatedProfile.plan_usage || 0)
@@ -331,11 +340,13 @@ export default function Dashboard() {
       setRealUsage(newUsage)
       usageRef.current = newUsage
       
-      const { data: updatedProfile } = await supabase
+      const { data: updatedProfile, error: updateError } = await supabase
         .from('profiles')
         .select('plan_usage, monthly_limit')
         .eq('user_id', userId)
         .single()
+      
+      console.log('After regeneration - Updated profile:', updatedProfile, 'Error:', updateError)
       
       if (updatedProfile) {
         setRealUsage(updatedProfile.plan_usage || 0)
