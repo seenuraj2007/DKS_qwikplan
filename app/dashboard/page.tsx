@@ -80,7 +80,24 @@ export default function Dashboard() {
 
         if (error) {
           console.error('Profile fetch error:', error)
-          setRealUsage(usageRef.current)
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([{ user_id: session.user.id, plan_usage: 0, monthly_limit: 50, plan_type: 'free' }])
+            .select('id, plan_usage, monthly_limit, plan_type')
+            .single()
+          
+          if (createError) {
+            console.error('Profile create error:', createError)
+            setRealUsage(0)
+            setRealLimit(50)
+            setPlanType('free')
+            usageRef.current = 0
+          } else {
+            setRealUsage(newProfile.plan_usage || 0)
+            setRealLimit(newProfile.monthly_limit || 50)
+            setPlanType(newProfile.plan_type || 'free')
+            usageRef.current = newProfile.plan_usage || 0
+          }
         } else if (profiles && profiles.length > 0) {
           const profile = profiles[0]
           const usageValue = profile.plan_usage || 0
@@ -90,10 +107,24 @@ export default function Dashboard() {
           setPlanType(profile.plan_type || 'free')
           usageRef.current = usageValue
         } else {
-          setRealUsage(0)
-          setRealLimit(50)
-          setPlanType('free')
-          usageRef.current = 0
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([{ user_id: session.user.id, plan_usage: 0, monthly_limit: 50, plan_type: 'free' }])
+            .select('id, plan_usage, monthly_limit, plan_type')
+            .single()
+          
+          if (createError) {
+            console.error('Profile create error:', createError)
+            setRealUsage(0)
+            setRealLimit(50)
+            setPlanType('free')
+            usageRef.current = 0
+          } else {
+            setRealUsage(newProfile.plan_usage || 0)
+            setRealLimit(newProfile.monthly_limit || 50)
+            setPlanType(newProfile.plan_type || 'free')
+            usageRef.current = newProfile.plan_usage || 0
+          }
         }
       } catch (err) {
         console.error('Session check error:', err)
@@ -216,6 +247,18 @@ export default function Dashboard() {
       const newUsage = realUsage + 1
       setRealUsage(newUsage)
       usageRef.current = newUsage
+      
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('plan_usage, monthly_limit')
+        .eq('user_id', userId)
+        .single()
+      
+      if (updatedProfile) {
+        setRealUsage(updatedProfile.plan_usage || 0)
+        setRealLimit(updatedProfile.monthly_limit || 50)
+        usageRef.current = updatedProfile.plan_usage || 0
+      }
     } catch (err) {
       showToast('Network error.', 'error')
     } finally {
@@ -287,6 +330,18 @@ export default function Dashboard() {
       const newUsage = realUsage + 1
       setRealUsage(newUsage)
       usageRef.current = newUsage
+      
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('plan_usage, monthly_limit')
+        .eq('user_id', userId)
+        .single()
+      
+      if (updatedProfile) {
+        setRealUsage(updatedProfile.plan_usage || 0)
+        setRealLimit(updatedProfile.monthly_limit || 50)
+        usageRef.current = updatedProfile.plan_usage || 0
+      }
     } catch (err) {
       showToast('Network error.', 'error')
     } finally {
