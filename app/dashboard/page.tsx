@@ -1,13 +1,18 @@
+
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabaseClient'
+import { useToast } from '../contexts/ToastContext'
+import type { PlanResult } from '../../lib/types'
 
-// --- IMPORT COMPONENTS ---
-import UsageCard from '../../app/components/UsageCard'
-import ResultModal from '../../app/components/ResultModal'
-import WelcomeAnimation from '../../app/components/WelcomeAnimation'
+import UsageCard from '../components/UsageCard'
+import ResultModal from '../components/ResultModal'
+import ResultModalEnhanced from '../components/ResultModalEnhanced'
+import LoadingState from '../components/LoadingState'
+import WelcomeAnimation from '../components/WelcomeAnimation'
+import StreakCard from '../components/StreakCard'
 
 import Link from 'next/link'
 import {
@@ -20,72 +25,42 @@ import {
   TrendingUp,
   Loader2,
   LogOut,
-  History,
   Download,
-  FileText,
-  X
+  X,
+  History,
+  Settings,
+  Crown
 } from 'lucide-react'
 
-interface PlanResult {
-  strategy: string
-  proTip?: string
-  bestPostTime?: string
-  schedule: string[]
-  hashtags?: string
-}
-
-interface Toast {
-  show: boolean
-  msg: string
-  type: 'success' | 'error'
-}
-
-interface HistoryItem {
-  id: number
-  user_id: string
-  niche: string
-  platform: string
-  goal: string
-  strategy_text: string
-  schedule: string[]
-  hashtags: string
-  created_at: string
-}
-
-export default function Dashboard() {
+function DashboardContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { showToast } = useToast()
 
-  // --- User Info State ---
+  // User info
   const [userEmail, setUserEmail] = useState('')
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
 
-  // --- Tool State ---
+  // Tool state
   const [niche, setNiche] = useState('')
   const [audience, setAudience] = useState('')
   const [platform, setPlatform] = useState('instagram')
   const [goal, setGoal] = useState('sales')
   const [loading, setLoading] = useState(false)
+  const [loadingStage, setLoadingStage] = useState<'analyzing' | 'crafting' | 'writing' | 'optimizing' | 'complete'>('analyzing')
   const [result, setResult] = useState<PlanResult | null>(null)
 
-  // --- Pop-up Modal State ---
+  // Modal
   const [showModal, setShowModal] = useState(false)
 
-  // --- Toast Notification State ---
-  const [toast, setToast] = useState<Toast>({ show: false, msg: '', type: 'success' })
-
-  // --- Real Usage States ---
+  // Usage
   const [realUsage, setRealUsage] = useState(0)
   const [realLimit, setRealLimit] = useState(50)
-
-  // --- Usage Ref ---
+  const [planType, setPlanType] = useState<'free' | 'pro' | 'enterprise'>('free')
   const usageRef = useRef(0)
 
-  // --- History States ---
-  const [history, setHistory] = useState<HistoryItem[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
-
-  // 1. Check Session
+  // 1. Session check + profile
   useEffect(() => {
     async function checkSession() {
       try {
@@ -94,118 +69,186 @@ export default function Dashboard() {
         if (!session) {
           router.push('/')
           return
-        } else {
-          setUserEmail(session.user.email ?? '')
-          setUserId(session.user.id)
+        }
 
-          const { data: profiles, error } = await supabase
+        setUserEmail(session.user.email ?? '')
+        setUserId(session.user.id)
+
+        const { data: profiles, error } = await supabase
+          .from('profiles')
+          .select('id, plan_usage, monthly_limit, plan_type')
+          .eq('user_id', session.user.id)
+
+        console.log('Fetched profiles:', profiles, 'Error:', error)
+
+        if (error) {
+          console.error('Profile fetch error:', error)
+          const { data: newProfile, error: createError } = await supabase
             .from('profiles')
-            .select('id, plan_usage, monthly_limit')
-            .eq('user_id', session.user.id)
-
-          if (error) {
-            console.error("DB Fetch Error:", error.message)
-            setRealUsage(usageRef.current)
+            .insert([{ user_id: session.user.id, plan_usage: 0, monthly_limit: 50, plan_type: 'free' }])
+            .select('id, plan_usage, monthly_limit, plan_type')
+            .single()
+          
+          console.log('Created new profile:', newProfile, 'Error:', createError)
+          
+          if (createError) {
+            console.error('Profile create error:', createError)
+            setRealUsage(0)
+            setRealLimit(50)
+            setPlanType('free')
+            usageRef.current = 0
           } else {
-            if (profiles && profiles.length > 0) {
-              const profile = profiles[0]
-              const usageValue = profile.plan_usage || 0
-              const limitValue = profile.monthly_limit || 50
-              setRealUsage(usageValue)
-              setRealLimit(limitValue)
-              usageRef.current = usageValue
-            } else {
-              setRealUsage(0)
-              setRealLimit(50)
-              usageRef.current = 0
-            }
+            setRealUsage(newProfile.plan_usage || 0)
+            setRealLimit(newProfile.monthly_limit || 50)
+            setPlanType(newProfile.plan_type || 'free')
+            usageRef.current = newProfile.plan_usage || 0
+          }
+        } else if (profiles && profiles.length > 0) {
+          const profile = profiles[0]
+          const usageValue = profile.plan_usage || 0
+          const limitValue = profile.monthly_limit || 50
+          console.log('Setting usage from profile:', usageValue, limitValue, profile.plan_type)
+          setRealUsage(usageValue)
+          setRealLimit(limitValue)
+          setPlanType(profile.plan_type || 'free')
+          usageRef.current = usageValue
+        } else {
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([{ user_id: session.user.id, plan_usage: 0, monthly_limit: 50, plan_type: 'free' }])
+            .select('id, plan_usage, monthly_limit, plan_type')
+            .single()
+          
+          console.log('Created new profile (no existing):', newProfile, 'Error:', createError)
+          
+          if (createError) {
+            console.error('Profile create error:', createError)
+            setRealUsage(0)
+            setRealLimit(50)
+            setPlanType('free')
+            usageRef.current = 0
+          } else {
+            setRealUsage(newProfile.plan_usage || 0)
+            setRealLimit(newProfile.monthly_limit || 50)
+            setPlanType(newProfile.plan_type || 'free')
+            usageRef.current = newProfile.plan_usage || 0
           }
         }
       } catch (err) {
-        console.error('Session Check Exception:', err)
+        console.error('Session check error:', err)
         setRealUsage(usageRef.current)
       } finally {
-        setTimeout(() => {
-          setLoadingAuth(false)
-        }, 1500)
+        setTimeout(() => setLoadingAuth(false), 1500)
       }
     }
+
     checkSession()
   }, [router])
 
-  // 2. Fetch History (Updated to limit to 1 week)
+  // Load strategy from URL params (from history page "view details")
   useEffect(() => {
-    async function fetchHistory() {
-      if (!userId) return
-      setLoadingHistory(true)
+    async function loadStrategyFromUrl() {
+      const strategyId = searchParams.get('view') || searchParams.get('regenerate')
       
-      // Calculate date: 1 week ago (7 days * 24 hours * 60 mins * 60 secs * 1000 ms)
-      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      if (!strategyId || !userId) return
 
-      const { data, error } = await supabase
-        .from('strategies')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .gt('created_at', oneWeekAgo.toISOString()) // <--- KEY CHANGE: Only fetch items newer than 1 week ago
-        // .limit(5) // Optional: Keep limit(5) as a safety net, though the date filter handles it
+      try {
+        const { data: strategy, error } = await supabase
+          .from('strategies')
+          .select('*')
+          .eq('id', strategyId)
+          .single()
 
-      if (data) {
-        setHistory(data as HistoryItem[])
-      } else {
-        console.error("History Fetch Error:", error)
+        if (error || !strategy) {
+          console.error('Failed to load strategy:', error)
+          return
+        }
+
+        let parsedResult: PlanResult | null = null
+        
+        try {
+          if (typeof strategy.schedule === 'string') {
+            parsedResult = JSON.parse(strategy.schedule)
+          } else if (Array.isArray(strategy.schedule)) {
+            const planData = strategy.schedule[0]
+            if (typeof planData === 'string') {
+              parsedResult = JSON.parse(planData)
+            } else {
+              parsedResult = planData as PlanResult
+            }
+          } else {
+            parsedResult = strategy.schedule as PlanResult
+          }
+        } catch (parseErr) {
+          console.error('Failed to parse strategy:', parseErr)
+          return
+        }
+
+        if (parsedResult) {
+          setNiche(strategy.niche)
+          setPlatform(strategy.platform)
+          setGoal(strategy.goal)
+          setResult(parsedResult)
+          setShowModal(true)
+          
+          router.replace('/dashboard', { scroll: false })
+        }
+      } catch (err) {
+        console.error('Error loading strategy:', err)
       }
-      setLoadingHistory(false)
     }
-    fetchHistory()
-  }, [userId])
 
-  // Show WelcomeAnimation while loading
+    loadStrategyFromUrl()
+  }, [searchParams, userId, router])
+
   if (loadingAuth) {
     return <WelcomeAnimation />
   }
 
-  // 3. Toast Helper
-  function showToast(message: string, type: 'success' | 'error' = 'success') {
-    setToast({ show: true, msg: message, type })
-    setTimeout(() => {
-      setToast({ show: false, msg: '', type })
-    }, 3000)
-  }
-
-  // 4. Logout
+  // Toast helper
+  // Logout
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/')
   }
 
-  // 5. CSV Export Function
+  // CSV download
   function downloadCSV(data: PlanResult, name: string) {
-    if (!data.schedule) return
+    if (!data.script) return
 
-    // Create CSV Header
+    // Helper to safely stringify fields for CSV
+    const formatField = (field: any): string => {
+      if (typeof field === 'string') return field
+      if (typeof field === 'object' && field !== null) return JSON.stringify(field)
+      return String(field)
+    }
+
     const csvContent = [
-      ["Day", "Content Idea"],
-      ...data.schedule.map((day: string) => {
-        const parts = day.split(':')
-        return [parts[0], parts.slice(1).join(':') || parts[0]]
-      })
+      ['Component', 'Content'],
+      ['Strategy', data.strategy],
+      ['Hook', data.hook],
+      ['Main Script/Body', data.script],
+      ['Caption', data.caption || ''],
+      ['Call to Action', data.cta],
+      ['Pro Tip', data.proTip || ''],
+      ['Best Time', data.bestPostTime || ''],
+      ['Hashtags', data.hashtags || ''],
     ]
-    .map(e => e.join(","))
-    .join("\n")
+      .map(row => row.map(field => `"${formatField(field).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement("a")
+    const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
-    link.setAttribute("href", url)
-    link.setAttribute("download", `${name.replace(/\s+/g, '_')}_plan.csv`)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${name.replace(/\s+/g, '_')}_script.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    showToast('CSV Downloaded successfully!', 'success')
+    showToast('Script Downloaded successfully!', 'success')
   }
 
-  // 6. Generate Plan
+  // Generate
   async function handleGenerate() {
     if (!niche.trim()) {
       showToast('Please enter your business niche', 'error')
@@ -213,17 +256,26 @@ export default function Dashboard() {
     }
 
     setLoading(true)
+    setLoadingStage('analyzing')
     setResult(null)
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken = session?.access_token
-      
+
       if (!accessToken) {
         showToast('Session expired. Please log in again.', 'error')
         router.push('/auth')
         return
       }
+
+      // Simulate loading stages for better UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('crafting')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('writing')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('optimizing')
 
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -231,19 +283,16 @@ export default function Dashboard() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          niche,
-          audience,
-          platform,
-          goal,
-        }),
+        body: JSON.stringify({ niche, audience, platform, goal }),
       })
 
       if (!res.ok) {
         let errorData: Record<string, unknown> = {}
         try {
           errorData = await res.json()
-        } catch { errorData = {} }
+        } catch {
+          errorData = {}
+        }
 
         showToast((errorData.error as string) || 'Something went wrong', 'error')
 
@@ -254,70 +303,181 @@ export default function Dashboard() {
       }
 
       const data = await res.json()
+      setLoadingStage('complete')
       setResult(data)
       setShowModal(true)
       showToast('Marketing Plan Generated Successfully!', 'success')
 
-      // Refresh History
-      const { data: newHistory } = await supabase
-        .from('strategies')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(5)
-      if (newHistory) setHistory(newHistory as HistoryItem[])
-
-      // Update Local Usage
       const newUsage = realUsage + 1
       setRealUsage(newUsage)
       usageRef.current = newUsage
-      setRealLimit(realLimit)
-
+      
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from('profiles')
+        .select('plan_usage, monthly_limit')
+        .eq('user_id', userId)
+        .single()
+      
+      console.log('After generation - Updated profile:', updatedProfile, 'Error:', updateError)
+      
+      if (updatedProfile) {
+        setRealUsage(updatedProfile.plan_usage || 0)
+        setRealLimit(updatedProfile.monthly_limit || 50)
+        usageRef.current = updatedProfile.plan_usage || 0
+      }
     } catch (err) {
-      console.error('Fetch error:', err)
       showToast('Network error.', 'error')
     } finally {
-      setLoading(false)
+      setTimeout(() => {
+        setLoading(false)
+        setLoadingStage('analyzing')
+      }, 500)
     }
   }
 
-  // 7. Render
+  // Regenerate with options
+  async function handleRegenerate(type: 'full' | 'hook' | 'script' | 'angle') {
+    if (!niche.trim()) {
+      showToast('Please enter your business niche', 'error')
+      return
+    }
+
+    setLoading(true)
+    setLoadingStage('analyzing')
+    setShowModal(false)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      if (!accessToken) {
+        showToast('Session expired. Please log in again.', 'error')
+        router.push('/auth')
+        return
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('crafting')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('writing')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setLoadingStage('optimizing')
+
+      // Add instructions to the request for partial regenerations
+      const body: Record<string, unknown> = {
+        niche,
+        audience,
+        platform,
+        goal,
+        regenerate: type
+      }
+
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const errorData: Record<string, unknown> = await res.json().catch(() => ({}))
+        showToast((errorData.error as string) || 'Something went wrong', 'error')
+        return
+      }
+
+      const data = await res.json()
+      setLoadingStage('complete')
+      setResult(data)
+      setShowModal(true)
+      showToast(`${type === 'full' ? 'Content' : type === 'angle' ? 'New angle' : type} regenerated successfully!`, 'success')
+
+      const newUsage = realUsage + 1
+      setRealUsage(newUsage)
+      usageRef.current = newUsage
+      
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from('profiles')
+        .select('plan_usage, monthly_limit')
+        .eq('user_id', userId)
+        .single()
+      
+      console.log('After regeneration - Updated profile:', updatedProfile, 'Error:', updateError)
+      
+      if (updatedProfile) {
+        setRealUsage(updatedProfile.plan_usage || 0)
+        setRealLimit(updatedProfile.monthly_limit || 50)
+        usageRef.current = updatedProfile.plan_usage || 0
+      }
+    } catch (err) {
+      showToast('Network error.', 'error')
+    } finally {
+      setTimeout(() => {
+        setLoading(false)
+        setLoadingStage('analyzing')
+      }, 500)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 font-sans relative">
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-xl shadow-2xl font-medium text-white transition-all duration-300 transform animate-bounce-in flex items-center gap-3 min-w-[320px] border border-white/10 backdrop-blur-md ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-500'}`}>
-          {toast.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-          ) : (
-            <X className="w-5 h-5 flex-shrink-0" />
-          )}
-          <span>{toast.msg}</span>
-        </div>
-      )}
-
       {/* Navbar */}
       <nav className="sticky top-0 z-50 w-full border-b border-slate-200/60 bg-white/70 backdrop-blur-md transition-all">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          {/* Logo */}
           <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl tracking-tight group">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg group-hover:scale-105 group-hover:shadow-xl transition-all duration-300">
               <Zap className="w-4 h-4 fill-current" />
             </div>
-            <span className="text-slate-900 group-hover:text-emerald-600 transition-colors">DKS QwikPlan</span>
+            <span className="text-slate-900 group-hover:text-emerald-600 transition-colors">
+              DKS QwikPlan
+            </span>
           </Link>
 
           <div className="flex items-center gap-6">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-xs font-semibold text-slate-600">{realUsage}/{realLimit} Credits</span>
-            </div>
+            {planType === 'pro' ? (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-full border border-amber-200">
+                <Crown className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
+                  PRO
+                </span>
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-xs font-semibold text-slate-600">
+                  {realUsage}/{realLimit} Credits
+                </span>
+              </div>
+            )}
+ 
+            <Link
+              href="/dashboard/history"
+              className="hidden md:flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-lg transition-all duration-200"
+            >
+              <History className="w-4 h-4" /> History
+            </Link>
+ 
+            <Link
+              href="/dashboard/settings"
+              className="hidden md:flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-lg transition-all duration-200"
+            >
+              <Settings className="w-4 h-4" /> Settings
+            </Link>
 
+            {planType === 'free' && (
+              <Link
+                href="/pricing"
+                className="hidden md:flex items-center gap-2 text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 px-4 py-2 rounded-lg transition-all duration-200 shadow-lg shadow-amber-500/30"
+              >
+                <Crown className="w-4 h-4" /> Upgrade
+              </Link>
+            )}
+ 
             <div className="hidden md:block text-sm font-medium text-slate-500">
               {userEmail}
             </div>
-            
+ 
             <button
               onClick={handleLogout}
               className="text-sm font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2"
@@ -328,109 +488,33 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Main */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* LEFT: Sidebar (Usage + History) */}
+          {/* LEFT: Usage + Streak */}
           <div className="lg:col-span-3 space-y-6">
-            <UsageCard
-              userEmail={userEmail}
-              usage={realUsage}
-              limit={realLimit}
-            />
-            
-            {/* NEW: History Section */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
-              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                    <History className="w-4 h-4 text-emerald-600" />
-                    Recent Strategies
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">Your saved library</p>
-                </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                {loadingHistory ? (
-                  <div className="text-center text-sm text-slate-400 py-4">Loading...</div>
-                ) : history.length === 0 ? (
-                  <div className="text-center text-sm text-slate-400 py-10">
-                     <FileText className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                     No strategies yet.
-                  </div>
-                ) : (
-                  history.map((item) => (
-                    <div key={item.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors group cursor-default">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full">
-                          {item.platform}
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                          {new Date(item.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <h4 className="font-bold text-slate-800 text-sm mb-1 truncate">
-                        {item.niche}
-                      </h4>
-                      <p className="text-xs text-slate-500 line-clamp-2 mb-3">
-                        {item.strategy_text}
-                      </p>
-                      
-                      {/* Quick Actions for History Item */}
-                      <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => {
-                             setResult({
-                               strategy: item.strategy_text,
-                               schedule: item.schedule,
-                               hashtags: item.hashtags
-                             })
-                             setShowModal(true)
-                          }}
-                          className="flex-1 bg-white border border-slate-200 text-xs font-semibold py-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
-                        >
-                          View
-                        </button>
-                        <button 
-                          onClick={() => downloadCSV({
-                             strategy: item.strategy_text,
-                             schedule: item.schedule,
-                             hashtags: item.hashtags
-                          }, item.niche)}
-                          className="flex-1 bg-white border border-slate-200 text-xs font-semibold py-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Download className="w-3 h-3" /> CSV
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <StreakCard userId={userId} />
+
+            <UsageCard userEmail={userEmail} usage={realUsage} limit={realLimit} />
           </div>
 
-          {/* RIGHT: Generator Tool */}
+          {/* RIGHT: Generator */}
           <div className="lg:col-span-9 space-y-8 animate-fade-in-up">
-            
-            {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Create Your Strategy</h1>
-              <p className="text-slate-500 mt-2">Fill in the details below and let our AI build your content calendar.</p>
+              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                Create Your Strategy
+              </h1>
+              <p className="text-slate-500 mt-2">
+                Fill in the details below and let our AI build your content script.
+              </p>
             </div>
 
-            {/* Main Generator Card */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
-              
-              {/* Decorative Top Bar */}
               <div className="h-2 w-full bg-gradient-to-r from-emerald-500 to-teal-600"></div>
 
               <div className="p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  
-                  {/* Section 1: Business Context */}
+                  {/* Business Profile */}
                   <div className="space-y-6 md:col-span-2">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
@@ -438,10 +522,12 @@ export default function Dashboard() {
                       </div>
                       <h2 className="text-lg font-bold text-slate-900">1. Business Profile</h2>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">Your Niche / Business</label>
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Your Niche / Business
+                        </label>
                         <div className="relative">
                           <input
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm hover:bg-white"
@@ -454,7 +540,9 @@ export default function Dashboard() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">Target Audience</label>
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Target Audience
+                        </label>
                         <div className="relative">
                           <input
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm hover:bg-white"
@@ -468,7 +556,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Section 2: Campaign Settings */}
+                  {/* Campaign Settings */}
                   <div className="space-y-6 md:col-span-2 border-t border-slate-100 pt-6">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="p-1.5 bg-teal-100 text-teal-700 rounded-lg">
@@ -479,11 +567,14 @@ export default function Dashboard() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">Primary Platform</label>
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Primary Platform
+                        </label>
                         <div className="relative">
                           <select
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm hover:bg-white appearance-none cursor-pointer"
-                            value={platform} onChange={e => setPlatform(e.target.value)}
+                            value={platform}
+                            onChange={e => setPlatform(e.target.value)}
                           >
                             <option value="instagram">Instagram</option>
                             <option value="facebook">Facebook</option>
@@ -491,21 +582,33 @@ export default function Dashboard() {
                             <option value="twitter">Twitter / X</option>
                             <option value="youtube">YouTube</option>
                           </select>
-                          {/* Custom Arrow */}
                           <div className="absolute right-4 top-3.5 pointer-events-none text-slate-500">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            <svg
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
                           </div>
-                          {/* Placeholder Icon */}
                           <Globe className="absolute left-3 top-3.5 text-slate-400 w-5 h-5 opacity-50" />
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">Main Goal</label>
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Main Goal
+                        </label>
                         <div className="relative">
                           <select
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm hover:bg-white appearance-none cursor-pointer"
-                            value={goal} onChange={e => setGoal(e.target.value)}
+                            value={goal}
+                            onChange={e => setGoal(e.target.value)}
                           >
                             <option value="sales">Drive Sales</option>
                             <option value="brand">Brand Awareness</option>
@@ -513,7 +616,18 @@ export default function Dashboard() {
                             <option value="leads">Generate Leads</option>
                           </select>
                           <div className="absolute right-4 top-3.5 pointer-events-none text-slate-500">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            <svg
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
                           </div>
                           <Target className="absolute left-3 top-3.5 text-slate-400 w-5 h-5 opacity-50" />
                         </div>
@@ -544,11 +658,14 @@ export default function Dashboard() {
                         </>
                       )}
                     </button>
-                    <p className="text-center text-xs text-slate-400 mt-3">
-                      This will use 1 credit from your monthly limit.
-                    </p>
-                  </div>
 
+                    {/* Loading State Component */}
+                    {loading && (
+                      <div className="mt-6">
+                        <LoadingState stage={loadingStage} progress={80} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -556,10 +673,9 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Modal Component */}
-      {/* Passing onDownload prop to allow CSV export from the modal */}
+      {/* Modal */}
       {userId && (
-        <ResultModal
+        <ResultModalEnhanced
           showModal={showModal}
           result={result}
           niche={niche}
@@ -568,40 +684,18 @@ export default function Dashboard() {
           onClose={() => setShowModal(false)}
           userId={userId}
           userEmail={userEmail}
-          onDownload={(data) => downloadCSV(data, niche)}
+          onDownload={(data: PlanResult) => downloadCSV(data, niche)}
+          onRegenerate={handleRegenerate}
         />
       )}
-      
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.6s ease-out forwards;
-        }
-        @keyframes bounceIn {
-          0% { opacity: 0; transform: scale(0.9); }
-          50% { transform: scale(1.02); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        .animate-bounce-in {
-          animation: bounceIn 0.4s ease-out forwards;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: #cbd5e1;
-          border-radius: 20px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: #94a3b8;
-        }
-      `}</style>
     </div>
+  )
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<WelcomeAnimation />}>
+      <DashboardContent />
+    </Suspense>
   )
 }
